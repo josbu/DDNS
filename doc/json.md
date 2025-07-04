@@ -46,7 +46,9 @@ DDNS配置文件遵循JSON模式(Schema)，推荐在配置文件中添加`$schem
 | index4   | string\|int\|array |  否  | `"default"` |   IPv4获取方式    | 详见下方说明                                                                                               |
 | index6   | string\|int\|array |  否  | `"default"` |   IPv6获取方式    | 详见下方说明                                                                                               |
 |  ttl     |       number       |  否  |   `null`    | DNS解析TTL时间     | 单位为秒，不设置则采用DNS默认策略                                                                          |
+|  line    |       string       |  否  |   `null`    | DNS解析线路       | ISP线路选择，支持的值视DNS服务商而定，如：`"默认"`、`"电信"`、`"联通"`、`"移动"`等                          |
 |  proxy   | string\|array      |  否  |     无      | HTTP代理          | 多代理逐个尝试直到成功，`DIRECT`为直连                                                                      |
+|   ssl    | string\|boolean    |  否  |  `"auto"`   | SSL证书验证方式    | `true`（强制验证）、`false`（禁用验证）、`"auto"`（自动降级）或自定义CA证书文件路径                          |
 |  debug   |       boolean      |  否  |   `false`   | 是否开启调试       | 等同于设置log.level=DEBUG，配置文件中设置此字段无效，仅命令行参数`--debug`有效                             |
 |  cache   |    string\|bool    |  否  |   `true`    | 是否缓存记录       | 正常情况打开避免频繁更新，默认位置为临时目录下`ddns.cache`，也可以指定具体路径                              |
 |  log     |       object       |  否  |   `null`    | 日志配置（可选）   | 日志配置对象，支持`level`、`file`、`format`、`datefmt`参数                                                |
@@ -64,34 +66,37 @@ DDNS配置文件遵循JSON模式(Schema)，推荐在配置文件中添加`$schem
 
 `index4`和`index6`参数用于指定获取IP地址的方式，可以使用以下值：
 
-- **数字**（如`0`、`1`、`2`...）：表示使用第N个网卡的IP地址
-- **字符串**：
-  - `"default"`：系统访问外网的默认IP
-  - `"public"`：使用公网IP（通过API查询）
-  - `"url:xxx"`：通过指定URL获取IP，例如`"url:http://ip.sb"`
-  - `"regex:xxx"`：使用正则表达式匹配本地网络配置中的IP，例如`"regex:192\\.168\\..*"`
-    - 注意：JSON中反斜杠需要转义，如`"regex:10\\.00\\..*"`表示匹配`10.00.`开头的IP
-  - `"cmd:xxx"`：执行指定命令并使用其输出作为IP
-  - `"shell:xxx"`：使用系统shell运行命令并使用其输出作为IP
-- **布尔值**：`false`表示禁止更新相应IP类型的DNS记录
-- **数组**：按顺序尝试不同的获取方式，使用第一个成功获取的结果
+* **数字**（如`0`、`1`、`2`...）：表示使用第N个网卡的IP地址
+* **字符串**：
+  * `"default"`：系统访问外网的默认IP
+  * `"public"`：使用公网IP（通过API查询）
+  * `"url:xxx"`：通过指定URL获取IP，例如`"url:http://ip.sb"`
+  * `"regex:xxx"`：使用正则表达式匹配本地网络配置中的IP，例如`"regex:192\\.168\\..*"`
+    * 注意：JSON中反斜杠需要转义，如`"regex:10\\.00\\..*"`表示匹配`10.00.`开头的IP
+  * `"cmd:xxx"`：执行指定命令并使用其输出作为IP
+  * `"shell:xxx"`：使用系统shell运行命令并使用其输出作为IP
+* **布尔值**：`false`表示禁止更新相应IP类型的DNS记录
+* **数组**：按顺序尝试不同的获取方式，使用第一个成功获取的结果
 
 ## 自定义回调配置
 
 当`dns`设置为`callback`时，可通过以下方式配置自定义回调：
 
-- `id`字段：填写回调地址，以HTTP或HTTPS开头
-- `token`字段：POST参数，为空则使用GET方式发起回调
+* `id`字段：填写回调地址，以HTTP或HTTPS开头，支持变量替换
+* `token`字段：POST请求参数（JSON对象或JSON字符串），为空则使用GET方式发起回调
 
-支持的常量替换：
+详细配置请参考：[Callback Provider 配置文档](providers/callback.md)
+
+支持的变量替换：
 
 | 常量名称 | 常量内容 | 说明 |
 |---------|---------|------|
-| `__DOMAIN__` | DDNS域名 | - |
-| `__RECORDTYPE__` | DDNS记录类型 | A或AAAA |
-| `__TTL__` | DDNS TTL | - |
+| `__DOMAIN__` | DDNS域名 | 完整域名 |
+| `__IP__` | 获取的IP地址 | IPv4或IPv6地址 |
+| `__RECORDTYPE__` | DDNS记录类型 | A、AAAA、CNAME等 |
+| `__TTL__` | DDNS TTL | 生存时间（秒） |
+| `__LINE__` | 解析线路 | default、unicom等 |
 | `__TIMESTAMP__` | 请求发起时间戳 | 包含小数 |
-| `__IP__` | 获取的IP地址 | - |
 
 ## 配置示例
 
@@ -109,6 +114,28 @@ DDNS配置文件遵循JSON模式(Schema)，推荐在配置文件中添加`$schem
 }
 ```
 
+### 带线路配置的DNS服务
+
+国内DNS服务商通常支持按运营商线路解析，可以为不同运营商的用户返回不同的IP地址：
+
+```json
+{
+  "$schema": "https://ddns.newfuture.cc/schema/v4.0.json",
+  "id": "12345",
+  "token": "mytokenkey", 
+  "dns": "dnspod",
+  "ipv4": ["telecom.example.com"],
+  "ttl": 600,
+  "line": "电信"
+}
+```
+
+**支持线路的DNS服务商：**
+- **阿里云DNS (alidns)**：`"default"`、`"telecom"`、`"unicom"`、`"mobile"`、`"oversea"`等
+- **DNSPod (dnspod)**：`"默认"`、`"电信"`、`"联通"`、`"移动"`等
+- **腾讯云 (tencentcloud)**：`"默认"`、`"电信"`、`"联通"`、`"移动"`等
+- **华为云 (huaweidns)**：通过额外参数支持线路配置
+
 ### 高级配置示例
 
 ```json
@@ -123,6 +150,7 @@ DDNS配置文件遵循JSON模式(Schema)，推荐在配置文件中添加`$schem
   "index6": "public",
   "ttl": 300,
   "proxy": "127.0.0.1:1080;DIRECT",
+  "ssl": "auto",
   "cache": "/var/cache/ddns.cache",
   "log": {
     "level": "DEBUG",
@@ -167,9 +195,9 @@ DDNS配置文件遵循JSON模式(Schema)，推荐在配置文件中添加`$schem
 
 DDNS工具中的配置优先级顺序为：**命令行参数 > JSON配置文件 > 环境变量**。
 
-- **命令行参数**：优先级最高，会覆盖JSON配置文件和环境变量中的相同设置
-- **JSON配置文件**：介于命令行参数和环境变量之间，会覆盖环境变量中的设置
-- **环境变量**：优先级最低，当命令行参数和JSON配置文件中都没有相应设置时使用
+* **命令行参数**：优先级最高，会覆盖JSON配置文件和环境变量中的相同设置
+* **JSON配置文件**：介于命令行参数和环境变量之间，会覆盖环境变量中的设置
+* **环境变量**：优先级最低，当命令行参数和JSON配置文件中都没有相应设置时使用
 
 ### 配置覆盖示例
 
@@ -185,9 +213,9 @@ DDNS工具中的配置优先级顺序为：**命令行参数 > JSON配置文件 
 
 ### 特殊情况
 
-- 当JSON配置文件中某个值明确设为`null`时，将覆盖环境变量设置，相当于未设置该值
-- 当JSON配置文件中缺少某个键时，会尝试使用对应的环境变量
-- 某些参数（如`debug`）仅在特定配置方式下有效：`debug`参数只在命令行中有效，JSON配置中的设置会被忽略
+* 当JSON配置文件中某个值明确设为`null`时，将覆盖环境变量设置，相当于未设置该值
+* 当JSON配置文件中缺少某个键时，会尝试使用对应的环境变量
+* 某些参数（如`debug`）仅在特定配置方式下有效：`debug`参数只在命令行中有效，JSON配置中的设置会被忽略
 
 ## 注意事项
 

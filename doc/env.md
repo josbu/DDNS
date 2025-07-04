@@ -32,6 +32,7 @@ DDNS 支持通过环境变量进行配置，环境变量的优先级为：**[命
 | `DDNS_INDEX4` | 数组/字符串/数字 | `default` | IPv4地址获取方式 |
 | `DDNS_INDEX6` | 数组/字符串/数字 | `default` | IPv6地址获取方式 |
 | `DDNS_TTL` | 整数 | 无 | DNS解析TTL时间（秒） |
+| `DDNS_LINE` | 字符串 | 无 | DNS解析线路，ISP线路选择 |
 | `DDNS_PROXY` | 数组/字符串 | 无 | HTTP代理设置 |
 | `DDNS_CACHE` | 布尔值/字符串 | `true` | 缓存设置 |
 | `DDNS_LOG_LEVEL` | 字符串 | `INFO` | 日志级别 |
@@ -48,6 +49,7 @@ DDNS 支持通过环境变量进行配置，环境变量的优先级为：**[命
 | `DDNS_IPV6` | JSON数组, 逗号分隔的字符串 | `export DDNS_IPV6="example.com,ipv6.example.com"` |
 | `DDNS_INDEX4` | 数字、default、public、url:、regex:、cmd:、shell: | `export DDNS_INDEX4='["public", "regex:192\\.168\\..*"]'` |
 | `DDNS_INDEX6` | 数字、default、public、url:、regex:、cmd:、shell: | `export DDNS_INDEX6="public"` |
+| `DDNS_LINE` | 线路名称，如默认、电信、联通、移动等 | `export DDNS_LINE="电信"` |
 | `DDNS_PROXY` | IP:端口, DIRECT, 分号分隔的列表 | `export DDNS_PROXY="127.0.0.1:1080;DIRECT"` |
 | `DDNS_CACHE` | true/false, 文件路径 | `export DDNS_CACHE="/path/to/cache.json"` |
 | `DDNS_LOG_LEVEL` | DEBUG, INFO, WARNING, ERROR, CRITICAL | `export DDNS_LOG_LEVEL="DEBUG"` |
@@ -107,6 +109,38 @@ DDNS 支持通过环境变量进行配置，环境变量的优先级为：**[命
   export DDNS_DNS="huaweidns"     # 华为云 DNS
   export DDNS_DNS="callback"      # 自定义回调
   ```
+
+### 自定义回调配置
+
+当使用 `DDNS_DNS="callback"` 时，可通过以下环境变量配置自定义回调：
+
+- **DDNS_ID**: 回调URL地址，支持变量替换
+- **DDNS_TOKEN**: POST请求参数（JSON字符串），为空时使用GET请求
+
+详细配置请参考：[Callback Provider 配置文档](providers/callback.md)
+
+**示例**:
+
+```bash
+# GET 方式回调
+export DDNS_DNS="callback"
+export DDNS_ID="https://api.example.com/ddns?domain=__DOMAIN__&ip=__IP__"
+export DDNS_TOKEN=""
+
+# POST 方式回调（JSON字符串）
+export DDNS_DNS="callback"
+export DDNS_ID="https://api.example.com/ddns"
+export DDNS_TOKEN='{"api_key": "your_key", "domain": "__DOMAIN__", "ip": "__IP__"}'
+```
+
+**支持的变量替换**:
+
+- `__DOMAIN__`: 完整域名
+- `__IP__`: IP地址（IPv4或IPv6）
+- `__RECORDTYPE__`: DNS记录类型
+- `__TTL__`: 生存时间（秒）
+- `__LINE__`: 解析线路
+- `__TIMESTAMP__`: 当前时间戳
 
 ## 域名配置
 
@@ -285,6 +319,28 @@ DDNS 支持通过环境变量进行配置，环境变量的优先级为：**[命
   export DDNS_CACHE="/path/to/ddns.cache"
   ```
 
+### SSL证书验证
+
+#### DDNS_SSL
+
+- **类型**: 字符串或布尔值
+- **必需**: 否
+- **默认值**: `"auto"`
+- **说明**: SSL证书验证方式，控制HTTPS连接的证书验证行为
+- **可选值**:
+  - `"true"`: 强制验证SSL证书（最安全）
+  - `"false"`: 禁用SSL证书验证（最不安全）
+  - `"auto"`: 优先验证，SSL证书错误时自动降级（不安全）
+  - 文件路径: 使用指定路径的自定义CA证书（最安全）
+- **示例**:
+
+  ```bash
+  export DDNS_SSL="true"     # 强制验证SSL证书
+  export DDNS_SSL="false"    # 禁用SSL验证（不推荐）
+  export DDNS_SSL="auto"     # 自动降级模式
+  export DDNS_SSL="/etc/ssl/certs/ca-certificates.crt"  # 自定义CA证书
+  ```
+
 ### 日志配置
 
 #### DDNS_LOG_LEVEL
@@ -430,16 +486,16 @@ ddns
    - JSON 数组格式：`'["item1", "item2"]'`（推荐）
    - 逗号分隔格式：`"item1,item2"`
 
-2. **配置优先级和字段覆盖关系**: 
-   
+2. **配置优先级和字段覆盖关系**:
+
    DDNS工具中的配置优先级顺序为：**命令行参数 > JSON配置文件 > 环境变量**
-   
+
    - **命令行参数**: 优先级最高，会覆盖JSON配置文件和环境变量中的相同设置
    - **JSON配置文件**: 优先级中等，会覆盖环境变量中的设置，但会被命令行参数覆盖
    - **环境变量**: 优先级最低，当命令行参数和JSON配置文件中都没有相应设置时使用
-   
+
    举例说明：
-   
+
    ```
    # 环境变量设置
    export DDNS_TTL="600"
@@ -452,12 +508,12 @@ ddns
    # 命令行参数
    ddns --ttl 900
    ```
-   
+
    在上述例子中：
    - 最终生效的是命令行参数值：`ttl=900`
    - 如果不提供命令行参数，则使用JSON配置文件值：`ttl=300`
    - 如果JSON配置和命令行参数都不提供，则使用环境变量值：`ttl=600`
-   
+
    另外，JSON配置文件中明确设置为`null`的值会覆盖环境变量设置，相当于未设置该值。
 
 3. **大小写兼容**: 环境变量名支持大写、小写或混合大小写

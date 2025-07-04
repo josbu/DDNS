@@ -42,14 +42,17 @@
         "cloudflare"
       ],
       "enum": [
-        "dnspod",
         "alidns",
+        "callback",
         "cloudflare",
-        "dnspod_com",
+        "debug",
         "dnscom",
+        "dnspod_com",
+        "dnspod",
         "he",
         "huaweidns",
-        "callback"
+        "noip",
+        "tencentcloud"
       ]
     },
     "ipv4": {
@@ -160,6 +163,26 @@
         null
       ]
     },
+    "line": {
+      "$id": "/properties/line",
+      "type": [
+        "string",
+        "null"
+      ],
+      "title": "DNS Line/Route",
+      "description": "DNS线路设置，如电信、联通、移动等，支持中文和英文线路名称",
+      "default": null,
+      "examples": [
+        "telecom",
+        "电信",
+        "unicom",
+        "联通",
+        "mobile",
+        "移动",
+        "default",
+        "默认"
+      ]
+    },
     "proxy": {
       "$id": "/properties/proxy",
       "type": [
@@ -199,21 +222,36 @@
           "title": "Log Level",
           "description": "日志级别，如 DEBUG、INFO、WARNING、ERROR、CRITICAL",
           "default": "INFO",
-          "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ]
         },
         "file": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "title": "Log Output File",
           "description": "日志输出文件路径，留空或为null时输出到控制台"
         },
         "format": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "title": "Log Format",
           "description": "日志格式，参考Python logging模块的格式字符串",
           "default": "%(asctime)s %(levelname)s [%(module)s]: %(message)s"
         },
         "datefmt": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "title": "Date Format",
           "description": "日期时间格式，参考Python time.strftime()的格式字符串",
           "default": "%Y-%m-%dT%H:%M:%S"
